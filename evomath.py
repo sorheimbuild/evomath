@@ -415,7 +415,7 @@ class KnowledgeBase:
         return random.choice(self.entries)
 
 
-class EvoMathV5:
+class EvoMath:
     """
     V5: Complement-Enhanced Immune Algorithm
     
@@ -746,7 +746,7 @@ def benchmark():
     for name, test_cases in problems:
         print(f"\n--- {name} ---")
         
-        evo = EvoMathV5(population_size=150)
+        evo = EvoMath(population_size=150)
         antigen = Antigen(target=name, test_cases=test_cases, description=name)
         
         start = time.time()
