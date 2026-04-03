@@ -100,6 +100,40 @@ class Node:
         right_c = self.right.complexity() if self.right else 1
         return 1 + left_c + right_c
     
+    def count_clean_operators(self) -> Tuple[int, int]:
+        """Returns (clean_ops, bitwise_ops)"""
+        clean_ops = {'+', '-', '*', '/', '**'}
+        bitwise_ops = {'^', '&', '|', '<<', '>>'}
+        
+        if self.op in clean_ops:
+            clean = 1
+            bitwise = 0
+        elif self.op in bitwise_ops:
+            clean = 0
+            bitwise = 1
+        else:
+            clean = 0
+            bitwise = 0
+        
+        if self.left:
+            lc, lb = self.left.count_clean_operators()
+            clean += lc
+            bitwise += lb
+        if self.right:
+            rc, rb = self.right.count_clean_operators()
+            clean += rc
+            bitwise += rb
+        
+        return clean, bitwise
+    
+    def elegance_score(self) -> float:
+        """Higher is better - prefer clean math over bitwise"""
+        clean, bitwise = self.count_clean_operators()
+        total = clean + bitwise
+        if total == 0:
+            return 1.0
+        return clean / total
+    
     def to_string(self) -> str:
         if self.op == "CONST":
             return f"{self.value:.4g}"
@@ -494,6 +528,9 @@ class EvoMathV5:
         else:
             base_fitness = (1.0 / (avg_error + 1e-15)) * (math.log(complexity + 1) ** 0.3)
         
+        elegance = node.elegance_score()
+        elegance_bonus = 1.0 + elegance * 0.5
+        
         antibiotic_boost = self.antibiotic.apply(antibody, antigen)
         
         affinity_bonus = 1.0 + antibody.affinity * 0.5
@@ -501,7 +538,7 @@ class EvoMathV5:
         
         hit_bonus = hit_rate * 500
         
-        return (base_fitness * affinity_bonus * class_bonus * antibiotic_boost + hit_bonus)
+        return (base_fitness * elegance_bonus * affinity_bonus * class_bonus * antibiotic_boost + hit_bonus)
     
     def complement_system_check(self, antibody: Antibody, antigen: Antigen) -> bool:
         """Complement system verification"""
