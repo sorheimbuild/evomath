@@ -18,6 +18,15 @@ class Operator(Enum):
     SQRT = "sqrt"
     EXP = "exp"
     ABS = "abs"
+    XOR = "^"  # Bitwise XOR (crypto critical)
+    AND = "&"  # Bitwise AND
+    OR = "|"   # Bitwise OR
+    SHL = "<<" # Left shift
+    SHR = ">>" # Right shift
+    ROT = "rot"  # Rotate bits
+    NOT = "~"   # Bitwise NOT
+    FLOOR = "floor"
+    CEIL = "ceil"
 
 class AntibodyClass(Enum):
     IGM = "IgM"      # Naive, broad response
@@ -60,11 +69,23 @@ class Node:
             Operator.SQRT.value: lambda a, b: math.sqrt(abs(a)),
             Operator.EXP.value: lambda a, b: math.exp(a),
             Operator.ABS.value: lambda a, b: abs(a),
+            Operator.XOR.value: lambda a, b: int(a) ^ int(b),
+            Operator.AND.value: lambda a, b: int(a) & int(b),
+            Operator.OR.value: lambda a, b: int(a) | int(b),
+            Operator.SHL.value: lambda a, b: int(a) << int(b),
+            Operator.SHR.value: lambda a, b: int(a) >> int(b),
+            Operator.ROT.value: lambda a, b: ((int(a) << int(b)) | (int(a) >> (32 - int(b)))) % (2**32),
+            Operator.NOT.value: lambda a, b: ~int(a),
+            Operator.FLOOR.value: lambda a, b: math.floor(a),
+            Operator.CEIL.value: lambda a, b: math.ceil(a),
         }
         
+        unary_ops = {Operator.SIN.value, Operator.COS.value, Operator.LOG.value, 
+                    Operator.SQRT.value, Operator.EXP.value, Operator.ABS.value,
+                    Operator.NOT.value, Operator.FLOOR.value, Operator.CEIL.value}
+        
         if self.op in ops:
-            if self.op in (Operator.SIN.value, Operator.COS.value, Operator.LOG.value, 
-                          Operator.SQRT.value, Operator.EXP.value, Operator.ABS.value):
+            if self.op in unary_ops:
                 return ops[self.op](l, 0)
             return ops[self.op](l, r)
         
@@ -73,8 +94,11 @@ class Node:
     def complexity(self) -> int:
         if self.op in ("CONST", "VAR"):
             return 1
-        if self.op in (Operator.SIN.value, Operator.COS.value, Operator.LOG.value, 
-                      Operator.SQRT.value, Operator.EXP.value, Operator.ABS.value):
+        unary_ops = {Operator.SIN.value, Operator.COS.value, Operator.LOG.value, 
+                    Operator.SQRT.value, Operator.EXP.value, Operator.ABS.value,
+                    Operator.NOT.value, Operator.FLOOR.value, Operator.CEIL.value,
+                    Operator.ROT.value}
+        if self.op in unary_ops:
             return 1 + self.left.complexity() if self.left else 2
         left_c = self.left.complexity() if self.left else 1
         right_c = self.right.complexity() if self.right else 1
@@ -311,8 +335,8 @@ class EvoMathV3:
         self.maturation_cycle = 0
         self.igm_to_igg_conversions = 0
         
-        self.binary_ops = [op.value for op in [Operator.ADD, Operator.SUB, Operator.MUL, Operator.DIV, Operator.POW, Operator.MOD]]
-        self.unary_ops = [op.value for op in [Operator.SIN, Operator.COS, Operator.LOG, Operator.SQRT, Operator.EXP, Operator.ABS]]
+        self.binary_ops = [op.value for op in [Operator.ADD, Operator.SUB, Operator.MUL, Operator.DIV, Operator.POW, Operator.MOD, Operator.XOR, Operator.AND, Operator.OR, Operator.SHL, Operator.SHR, Operator.ROT]]
+        self.unary_ops = [op.value for op in [Operator.SIN, Operator.COS, Operator.LOG, Operator.SQRT, Operator.EXP, Operator.ABS, Operator.NOT, Operator.FLOOR, Operator.CEIL]]
     
     def random_node(self, depth: int = 0, max_depth: int = 5) -> Node:
         if depth >= max_depth or random.random() < 0.25:
@@ -562,8 +586,9 @@ class EvoMathV3:
         for i in range(max_generations):
             self.evolve_generation(antigen)
             
+            best = self.population[0]
+            
             if verbose and i % 50 == 0:
-                best = self.population[0]
                 simplified = self.simplifier.simplify(best.node)
                 igg_count = len([a for a in self.population if a.antibody_class == AntibodyClass.IGG])
                 print(f"Gen {i:4d}: fitness={best.fitness:12.2f} | "
@@ -592,7 +617,7 @@ def demo():
     print(" EvoMathV3 - Antibody Maturation & Class Switching")
     print("=" * 75)
     
-    evo = EvoMathV3(population_size=800)
+    evo = EvoMathV3(population_size=400)
     
     print("\n--- Task 1: Find expression that equals 3x for various x ---")
     test_cases = [
@@ -603,7 +628,7 @@ def demo():
         ({'x': 10, 'y': 0, 'z': 0, 'n': 0, 't': 0}, 30),
     ]
     antigen = Antigen(test_cases=test_cases, description="3x")
-    solution = evo.solve(antigen, max_generations=300)
+    solution = evo.solve(antigen, max_generations=150)
     print(f"Solution: {solution.to_string()}")
     
     print("\n--- Task 2: Find expression for x³ ---")
@@ -615,23 +640,9 @@ def demo():
         ({'x': 5, 'y': 0, 'z': 0, 'n': 0, 't': 0}, 125),
     ]
     antigen = Antigen(test_cases=test_cases, description="x^3")
-    evo2 = EvoMathV3(population_size=800)
-    solution = evo2.solve(antigen, max_generations=300)
+    evo2 = EvoMathV3(population_size=400)
+    solution = evo2.solve(antigen, max_generations=150)
     print(f"Solution: {solution.to_string()}")
-    
-    print("\n--- Task 3: Find expression for x² + 2x + 1 (perfect square pattern) ---")
-    test_cases = [
-        ({'x': 1, 'y': 0, 'z': 0, 'n': 0, 't': 0}, 4),
-        ({'x': 2, 'y': 0, 'z': 0, 'n': 0, 't': 0}, 9),
-        ({'x': 3, 'y': 0, 'z': 0, 'n': 0, 't': 0}, 16),
-        ({'x': 5, 'y': 0, 'z': 0, 'n': 0, 't': 0}, 36),
-        ({'x': 10, 'y': 0, 'z': 0, 'n': 0, 't': 0}, 121),
-    ]
-    antigen = Antigen(test_cases=test_cases, description="(x+1)^2")
-    evo3 = EvoMathV3(population_size=800)
-    solution = evo3.solve(antigen, max_generations=300)
-    print(f"Solution: {solution.to_string()}")
-    print(f"(Should ideally find: (x+1)^2 or x^2+2x+1)")
     
     print("\n" + "=" * 75)
 
