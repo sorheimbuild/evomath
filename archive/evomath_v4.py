@@ -529,8 +529,9 @@ class EvoMathV4:
         for i in range(max_generations):
             self.evolve_generation(antigen)
             
+            best = self.population[0]
+            
             if verbose and (i % 50 == 0 or i < 5):
-                best = self.population[0]
                 simplified = self.simplifier.simplify(best.node)
                 igg_count = len([a for a in self.population if a.antibody_class == AntibodyClass.IGG])
                 kb_count = len([a for a in self.population if a.knowledge_boost > 1.0])
