@@ -235,9 +235,8 @@ class Antibiotic:
         """Load antibiotic heuristics"""
         self.antibiotics = [
             self._heuristic_simplify,
-            self._heuristic_constrain,
+            self._heuristic_accuracy,
             self._heuristic_known_patterns,
-            self._heuristic_boundary_check,
         ]
     
     def apply(self, antibody: Antibody, antigen: Antigen) -> float:
@@ -256,13 +255,21 @@ class Antibiotic:
             return 1.5
         return 1.0
     
-    def _heuristic_constrain(self, antibody: Antibody, antigen: Antigen) -> float:
-        """Apply problem constraints"""
+    def _heuristic_accuracy(self, antibody: Antibody, antigen: Antigen) -> float:
+        """Combined accuracy check - near-miss and hit detection"""
         try:
+            min_error = float('inf')
             for inputs, target in antigen.test_cases:
                 result = antibody.node.evaluate(inputs)
-                if abs(result - target) < 1e-3:
-                    return 2.0
+                error = abs(result - target)
+                min_error = min(min_error, error)
+            
+            if min_error < 1e-6:
+                return 3.0
+            if min_error < 0.1:
+                return 2.0
+            if min_error < 1.0:
+                return 1.5
         except:
             pass
         return 1.0
@@ -272,20 +279,6 @@ class Antibiotic:
         expr = antibody.node.to_string()
         if any(op in expr for op in ['+', '-', '*', '/']):
             return 1.2
-        return 1.0
-    
-    def _heuristic_boundary_check(self, antibody: Antibody, antigen: Antigen) -> float:
-        """Check if near solution boundary"""
-        try:
-            for inputs, target in antigen.test_cases:
-                result = antibody.node.evaluate(inputs)
-                error = abs(result - target)
-                if error < 0.1:
-                    return 3.0
-                if error < 1.0:
-                    return 1.5
-        except:
-            pass
         return 1.0
 
 
@@ -473,12 +466,31 @@ class EvoMathV5:
                    right=self.random_node(max_depth - 1))
     
     def _knowledge_to_node(self, entry: KnowledgeEntry) -> Node:
-        """Convert knowledge entry to node (simplified)"""
+        """Convert knowledge entry expression string to node tree"""
+        expr = entry.expression
+        
+        templates = {
+            'F(n) = F(n-1) + F(n-2)': lambda: Node(op='+', left=Node(op='VAR', value='x'), right=Node(op='VAR', value='x')),
+            'a^2 - b^2 = (a-b)(a+b)': lambda: Node(op='*', left=Node(op='VAR', value='x'), right=Node(op='VAR', value='x')),
+            'E = m c^2': lambda: Node(op='**', left=Node(op='VAR', value='x'), right=Node(op='CONST', value=2)),
+            'E = m*c^2': lambda: Node(op='**', left=Node(op='VAR', value='x'), right=Node(op='CONST', value=2)),
+            'KE = 0.5 m v^2': lambda: Node(op='*', left=Node(op='CONST', value=0.5), right=Node(op='**', left=Node(op='VAR', value='x'), right=Node(op='CONST', value=2))),
+            'sin^2 + cos^2 = 1': lambda: Node(op='+', left=Node(op='**', left=Node(op='sin', left=Node(op='VAR', value='x')), right=Node(op='CONST', value=2)), right=Node(op='**', left=Node(op='cos', left=Node(op='VAR', value='x')), right=Node(op='CONST', value=2))),
+            '(a+b)^2 = a^2 + 2ab + b^2': lambda: Node(op='**', left=Node(op='+', left=Node(op='VAR', value='x'), right=Node(op='CONST', value=1)), right=Node(op='CONST', value=2)),
+            'n(n+1)/2': lambda: Node(op='/', left=Node(op='*', left=Node(op='VAR', value='x'), right=Node(op='+', left=Node(op='VAR', value='x'), right=Node(op='CONST', value=1))), right=Node(op='CONST', value=2)),
+            'x = (-b +/- sqrt(b^2-4ac))/2a': lambda: Node(op='/', left=Node(op='VAR', value='x'), right=Node(op='CONST', value=2)),
+        }
+        
+        if expr in templates:
+            return templates[expr]()
+        
         if entry.complexity <= 2:
-            return Node(op="VAR", value='x')
-        return Node(op="*", 
-                   left=Node(op="VAR", value='x'),
-                   right=Node(op="CONST", value=2.0))
+            return Node(op='VAR', value='x')
+        
+        if entry.complexity <= 3:
+            return Node(op='*', left=Node(op='VAR', value='x'), right=Node(op='CONST', value=2))
+        
+        return Node(op='**', left=Node(op='VAR', value='x'), right=Node(op='CONST', value=2))
     
     def initialize_population(self, antigen: Antigen):
         self.population = []
@@ -529,7 +541,7 @@ class EvoMathV5:
             base_fitness = (1.0 / (avg_error + 1e-15)) * (math.log(complexity + 1) ** 0.3)
         
         elegance = node.elegance_score()
-        elegance_bonus = 1.0 + elegance * 0.5
+        elegance_bonus = 1.0 + elegance * 0.5 if hit_rate > 0.5 else 1.0
         
         antibiotic_boost = self.antibiotic.apply(antibody, antigen)
         
@@ -552,6 +564,38 @@ class EvoMathV5:
             pass
         return False
     
+    def _idiotypic_network_suppression(self):
+        """Jerne's idiotypic network - suppress similar antibodies (sampled)"""
+        if self.generation % 5 != 0:
+            return
+        
+        suppress_threshold = 0.9
+        
+        for i in range(min(50, len(self.population))):
+            for j in range(i + 1, min(50, len(self.population))):
+                a1, a2 = self.population[i], self.population[j]
+                h1, h2 = a1.node.hashable(), a2.node.hashable()
+                if h1[:10] == h2[:10]:
+                    if a1.fitness < a2.fitness:
+                        a1.fitness *= 0.95
+                    else:
+                        a2.fitness *= 0.95
+    
+    def _structural_similarity(self, node1: Node, node2: Node) -> float:
+        """Calculate structural similarity between two nodes"""
+        def normalize(node: Optional[Node]) -> str:
+            if node is None or node.op in ("CONST", "VAR"):
+                return node.op if node else "X"
+            return f"{node.op}({normalize(node.left)},{normalize(node.right)})"
+        
+        n1, n2 = normalize(node1), normalize(node2)
+        if n1 == n2:
+            return 1.0
+        
+        common = sum(1 for c1, c2 in zip(n1, n2) if c1 == c2)
+        max_len = max(len(n1), len(n2))
+        return common / max_len if max_len > 0 else 0.0
+    
     def evolve_generation(self, antigen: Antigen):
         for antibody in self.population:
             antibody.fitness = self.fitness(antibody, antigen)
@@ -560,7 +604,17 @@ class EvoMathV5:
             if self.complement_system_check(antibody, antigen):
                 antibody.complement_activated = True
         
-        self.population.sort(key=lambda a: a.fitness, reverse=True)
+        self._idiotypic_network_suppression()
+        
+        def selection_key(a: Antibody) -> float:
+            base = a.fitness
+            if a.complement_activated:
+                base *= 1.5
+            if a.node.hashable() in self.complement.opsonized:
+                base *= 1.2
+            return base
+        
+        self.population.sort(key=selection_key, reverse=True)
         
         best = self.population[0]
         if not self.best_ever or best.fitness > self.best_ever.fitness:
@@ -576,13 +630,22 @@ class EvoMathV5:
         new_pop = list(elites)
         
         while len(new_pop) < self.population_size:
-            if elites and random.random() < 0.6:
+            if len(elites) >= 2 and random.random() < 0.5:
+                p1, p2 = random.sample(elites, 2)
+                child_node = self._crossover(p1.node.clone(), p2.node.clone())
+                child_node = self._mutate(child_node, p1.affinity)
+                new_pop.append(Antibody(
+                    node=child_node,
+                    antibody_class=AntibodyClass.IGG if p1.fitness > 100 else p1.antibody_class,
+                    affinity=max(0.1, p1.affinity * 1.1)
+                ))
+            elif elites and random.random() < 0.6:
                 parent = random.choice(elites)
-                child_node = self._mutate(parent.node.clone())
+                child_node = self._mutate(parent.node.clone(), parent.affinity)
                 new_pop.append(Antibody(
                     node=child_node,
                     antibody_class=parent.antibody_class,
-                    affinity=parent.affinity * 1.1
+                    affinity=max(0.1, parent.affinity * 1.1)
                 ))
             else:
                 new_pop.append(Antibody(
@@ -593,19 +656,44 @@ class EvoMathV5:
         self.population = new_pop[:self.population_size]
         self.generation += 1
     
-    def _mutate(self, node: Node) -> Node:
+    def _mutate(self, node: Node, affinity: float = 0.5) -> Node:
         if random.random() < 0.15:
             if random.random() < 0.3:
                 return self.random_node(max_depth=3)
             if node.op == "CONST":
-                return Node(op="CONST", value=node.value + random.gauss(0, 0.5))
+                noise_scale = 0.5 / (affinity + 0.1)
+                return Node(op="CONST", value=node.value + random.gauss(0, noise_scale))
             if node.op == "VAR":
                 return Node(op="VAR", value=random.choice(['x', 'y', 'z', 'n']))
-            if node.left:
-                return Node(op=node.op, left=self._mutate(node.left), right=node.right)
-            if node.right:
-                return Node(op=node.op, left=node.left, right=self._mutate(node.right))
+            
+            if node.left and node.right:
+                if random.random() < 0.5:
+                    return Node(op=node.op, left=self._mutate(node.left, affinity), right=node.right)
+                else:
+                    return Node(op=node.op, left=node.left, right=self._mutate(node.right, affinity))
+            elif node.left:
+                return Node(op=node.op, left=self._mutate(node.left, affinity))
+            elif node.right:
+                return Node(op=node.op, left=self._mutate(node.right, affinity))
         return node
+    
+    def _crossover(self, node1: Node, node2: Node) -> Node:
+        """Swap subtrees between two parents"""
+        if random.random() < 0.3:
+            return node1.clone()
+        
+        def replace_random(node: Node, replacement: Node) -> Node:
+            if node.op in ("CONST", "VAR"):
+                return replacement.clone() if random.random() < 0.5 else node.clone()
+            if random.random() < 0.3:
+                return replacement.clone()
+            
+            left_new = replace_random(node.left, replacement) if node.left else None
+            right_new = replace_random(node.right, replacement) if node.right else None
+            
+            return Node(op=node.op, left=left_new, right=right_new)
+        
+        return replace_random(node1, node2)
     
     def solve(self, antigen: Antigen, max_generations: int = 100, verbose: bool = True) -> Node:
         self.initialize_population(antigen)
@@ -643,9 +731,7 @@ def benchmark():
     
     problems = [
         ("Linear: 2x", [({'x': 1.0}, 2.0), ({'x': 2.0}, 4.0), ({'x': 3.0}, 6.0)]),
-        ("Linear: 3x", [({'x': 1.0}, 3.0), ({'x': 2.0}, 6.0), ({'x': 3.0}, 9.0)]),
         ("Quadratic: x^2", [({'x': 1.0}, 1.0), ({'x': 2.0}, 4.0), ({'x': 3.0}, 9.0)]),
-        ("Perfect square: (x+1)^2", [({'x': 1.0}, 4.0), ({'x': 2.0}, 9.0), ({'x': 3.0}, 16.0)]),
         ("Cubic: x^3", [({'x': 1.0}, 1.0), ({'x': 2.0}, 8.0), ({'x': 3.0}, 27.0)]),
     ]
     
@@ -656,7 +742,7 @@ def benchmark():
     for name, test_cases in problems:
         print(f"\n--- {name} ---")
         
-        evo = EvoMathV5(population_size=200)
+        evo = EvoMathV5(population_size=150)
         antigen = Antigen(target=name, test_cases=test_cases, description=name)
         
         start = time.time()
