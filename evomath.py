@@ -443,18 +443,20 @@ class EvoMath:
         
         print(f"Initialized V5 with {len(self.knowledge.entries)} knowledge entries")
     
-    def random_node(self, max_depth: int = 4) -> Node:
+    def random_node(self, max_depth: int = 4, allowed_vars: list = None, num_vars: int = 1) -> Node:
         if max_depth <= 0:
             if random.random() < 0.5:
                 val = random.choice([0, 1, 2, 3, 0.5, 1.0, 2.0, math.pi, math.e, 1.414])
                 return Node(op="CONST", value=val)
-            return Node(op="VAR", value=random.choice(['x', 'y', 'z', 'n']))
+            var = random.choice(allowed_vars) if allowed_vars else random.choice(['x', 'y', 'z', 'n'])
+            return Node(op="VAR", value=var)
         
         if random.random() < 0.2:
             if random.random() < 0.5:
                 val = random.choice([0, 1, 2, 3, 0.5, 1.0, 2.0, math.pi, math.e, 1.414])
                 return Node(op="CONST", value=val)
-            return Node(op="VAR", value=random.choice(['x', 'y', 'z', 'n']))
+            var = random.choice(allowed_vars) if allowed_vars else random.choice(['x', 'y', 'z', 'n'])
+            return Node(op="VAR", value=var)
         
         if random.random() < 0.15:
             kb_entry = self.knowledge.get_random_entry()
@@ -499,9 +501,13 @@ class EvoMath:
     def initialize_population(self, antigen: Antigen):
         self.population = []
         
+        allowed_vars = list(antigen.test_cases[0][0].keys()) if antigen.test_cases else ['x']
+        num_vars = len(allowed_vars)
+        
         for _ in range(self.population_size):
+            depth = random.randint(2, 5) if num_vars == 1 else random.randint(3, 6)
             self.population.append(Antibody(
-                node=self.random_node(max_depth=random.randint(2, 5)),
+                node=self.random_node(max_depth=depth, allowed_vars=allowed_vars, num_vars=num_vars),
                 antibody_class=AntibodyClass.IGM
             ))
         
@@ -545,7 +551,7 @@ class EvoMath:
             base_fitness = (1.0 / (avg_error + 1e-15)) * (math.log(complexity + 1) ** 0.3)
         
         elegance = node.elegance_score()
-        elegance_bonus = 1.0 + elegance * 0.5 if hit_rate > 0.5 else 1.0
+        elegance_bonus = 1.0 + elegance * 0.5 if hit_rate >= 0.5 else 1.0
         
         antibiotic_boost = self.antibiotic.apply(antibody, antigen)
         
@@ -554,7 +560,10 @@ class EvoMath:
         
         hit_bonus = hit_rate * 500
         
-        return (base_fitness * elegance_bonus * affinity_bonus * class_bonus * antibiotic_boost + hit_bonus)
+        if hit_rate == 1.0:
+            return (base_fitness * elegance_bonus * affinity_bonus * class_bonus * antibiotic_boost + hit_bonus)
+        
+        return (base_fitness * affinity_bonus * class_bonus * antibiotic_boost + hit_bonus * 0.1)
     
     def complement_system_check(self, antibody: Antibody, antigen: Antigen) -> bool:
         """Complement system verification"""
@@ -652,8 +661,11 @@ class EvoMath:
                     affinity=max(0.1, parent.affinity * 1.1)
                 ))
             else:
+                allowed_vars = list(antigen.test_cases[0][0].keys()) if antigen.test_cases else ['x']
+                num_vars = len(allowed_vars)
+                depth = random.randint(3, 6) if num_vars > 1 else random.randint(2, 4)
                 new_pop.append(Antibody(
-                    node=self.random_node(max_depth=random.randint(2, 5)),
+                    node=self.random_node(max_depth=depth, allowed_vars=allowed_vars, num_vars=num_vars),
                     antibody_class=AntibodyClass.IGM
                 ))
         
@@ -726,11 +738,11 @@ class EvoMath:
 
 
 def benchmark():
-    """Benchmark V5 performance"""
+    """Test EvoMath on math benchmarks"""
     import time
     
     print("=" * 60)
-    print(" EvoMathV5 - Complement-Enhanced Benchmark")
+    print(" EvoMath - Math Benchmark")
     print("=" * 60)
     
     problems = [
@@ -746,11 +758,54 @@ def benchmark():
     for name, test_cases in problems:
         print(f"\n--- {name} ---")
         
-        evo = EvoMath(population_size=150)
+        evo = EvoMath(population_size=100)
         antigen = Antigen(target=name, test_cases=test_cases, description=name)
         
         start = time.time()
-        solution = evo.solve(antigen, max_generations=50, verbose=True)
+        solution = evo.solve(antigen, max_generations=30, verbose=True)
+        elapsed = time.time() - start
+        
+        hits = sum(1 for inp, target in test_cases 
+                  if abs(solution.evaluate(inp) - target) < 1e-6)
+        
+        print(f"Solution: {solution.to_string()}")
+        print(f"Hits: {hits}/{len(test_cases)} | Time: {elapsed:.2f}s")
+        
+        total_hits += hits
+        total_tests += len(test_cases)
+        total_time += elapsed
+    
+    print("\n" + "=" * 60)
+    print(f"TOTAL: {total_hits}/{total_tests} ({100*total_hits/total_tests:.0f}%) | {total_time:.2f}s")
+    print("=" * 60)
+
+
+def physics_benchmark():
+    """Test EvoMath on real physics formulas"""
+    import time
+    
+    print("=" * 60)
+    print(" EvoMath - Physics Formula Benchmark")
+    print("=" * 60)
+    
+    problems = [
+        ("F=ma", [({'m': 1.0, 'a': 1.0}, 1.0), ({'m': 2.0, 'a': 3.0}, 6.0)]),
+        ("p=mv", [({'m': 1.0, 'v': 1.0}, 1.0), ({'m': 2.0, 'v': 5.0}, 10.0)]),
+        ("d=vt", [({'v': 2.0, 't': 1.0}, 2.0), ({'v': 5.0, 't': 4.0}, 20.0)]),
+    ]
+    
+    total_hits = 0
+    total_tests = 0
+    total_time = 0
+    
+    for name, test_cases in problems:
+        print(f"\n--- {name} ---")
+        
+        evo = EvoMath(population_size=100)
+        antigen = Antigen(target=name, test_cases=test_cases, description=name)
+        
+        start = time.time()
+        solution = evo.solve(antigen, max_generations=40, verbose=True)
         elapsed = time.time() - start
         
         hits = sum(1 for inp, target in test_cases 
@@ -769,4 +824,4 @@ def benchmark():
 
 
 if __name__ == "__main__":
-    benchmark()
+    physics_benchmark()
