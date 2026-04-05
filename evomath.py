@@ -16,9 +16,81 @@ Key Features:
 import random
 import math
 from dataclasses import dataclass, field
-from typing import List, Dict, Any, Tuple, Optional, Callable
+from typing import List, Dict, Any, Tuple, Optional, Callable, Set
 from enum import Enum
 from collections import defaultdict
+
+
+class UnitVector:
+    """MHC-inspired dimensional analysis.
+    
+    SI base units: [Length, Mass, Time, Current, Temp, Amount, Intensity]
+    Represented as: [L, M, T, I, Θ, N, J]
+    """
+    
+    def __init__(self, vector: Tuple[int, ...] = None, is_ghost: bool = False):
+        if vector is None:
+            self.vector = (0, 0, 0, 0, 0, 0, 0)
+        else:
+            self.vector = tuple(vector[:7]) + (0,) * (7 - len(vector[:7]))
+        self.is_ghost = is_ghost
+    
+    def __add__(self, other):
+        """Multiplication: units add"""
+        if self.is_ghost:
+            return other
+        if other.is_ghost:
+            return self
+        return UnitVector(tuple(a + b for a, b in zip(self.vector, other.vector)))
+    
+    def __sub__(self, other):
+        """Division: units subtract"""
+        if self.is_ghost:
+            return UnitVector(tuple(-b for b in other.vector))
+        if other.is_ghost:
+            return self
+        return UnitVector(tuple(a - b for a, b in zip(self.vector, other.vector)))
+    
+    def __mul__(self, n: int):
+        """Power: units multiply by n"""
+        return UnitVector(tuple(a * n for a in self.vector))
+    
+    def matches(self, other) -> bool:
+        """MHC Check: Are these units compatible for addition?"""
+        if self.is_ghost or other.is_ghost:
+            return True
+        return self.vector == other.vector
+    
+    def is_dimensionless(self) -> bool:
+        """Check if this is dimensionless (all zeros)"""
+        return all(v == 0 for v in self.vector)
+    
+    def __repr__(self):
+        if self.is_ghost:
+            return "GHOST"
+        return str(self.vector)
+
+
+# Predefined unit vectors for common variables
+UNIT_REGISTRY: Dict[str, UnitVector] = {
+    'm': UnitVector((1, 0, 0, 0, 0, 0, 0)),      # Length
+    'M': UnitVector((1, 0, 0, 0, 0, 0, 0)),      # Length
+    'x': UnitVector((1, 0, 0, 0, 0, 0, 0)),      # Length (generic)
+    'y': UnitVector((1, 0, 0, 0, 0, 0, 0)),      # Length (generic)
+    'z': UnitVector((1, 0, 0, 0, 0, 0, 0)),      # Length (generic)
+    't': UnitVector((0, 0, 1, 0, 0, 0, 0)),      # Time
+    'v': UnitVector((1, 0, -1, 0, 0, 0, 0)),     # Velocity [L/T]
+    'a': UnitVector((1, 0, -2, 0, 0, 0, 0)),     # Acceleration [L/T²]
+    'F': UnitVector((1, 1, -2, 0, 0, 0, 0)),     # Force [ML/T²]
+    'p': UnitVector((1, 1, -1, 0, 0, 0, 0)),     # Momentum [ML/T]
+    'E': UnitVector((2, 1, -2, 0, 0, 0, 0)),     # Energy [ML²/T²]
+    'KE': UnitVector((2, 1, -2, 0, 0, 0, 0)),     # Kinetic Energy
+    'mass': UnitVector((0, 1, 0, 0, 0, 0, 0)),    # Mass
+    'n': UnitVector((0, 0, 0, 0, 0, 1, 0)),     # Amount
+    'T': UnitVector((0, 0, 0, 0, 1, 0, 0)),      # Temperature
+    'I': UnitVector((0, 0, 0, 1, 0, 0, 0)),      # Current
+}
+
 
 class Operator(Enum):
     ADD = "+"
@@ -45,12 +117,13 @@ class AntibodyClass(Enum):
     COMPLEMENT = "Complement"  # Innate verification
     MEMORY = "Memory"  # Long-term storage
 
-@dataclass
+
 class Node:
-    op: str
-    value: Any = None
-    left: Optional['Node'] = None
-    right: Optional['Node'] = None
+    def __init__(self, op: str, value: Any = None, left: 'Node' = None, right: 'Node' = None):
+        self.op = op
+        self.value = value
+        self.left = left
+        self.right = right
     
     def clone(self) -> 'Node':
         if self.op in ("CONST", "VAR"):
@@ -159,6 +232,39 @@ class Node:
         if self.op == "VAR":
             return f"V{self.value}"
         return f"B({self.op}[{self.left.hashable() if self.left else 'X'}][{self.right.hashable() if self.right else 'X'}])"
+    
+    def get_unit(self) -> UnitVector:
+        """MHC-inspired unit propagation.
+        
+        Returns the dimensional unit vector for this expression.
+        """
+        if self.op == "CONST":
+            return UnitVector(is_ghost=True)
+        
+        if self.op == "VAR":
+            return UNIT_REGISTRY.get(self.value, UnitVector())
+        
+        unary_ops = {'sin', 'cos', 'log', 'sqrt', 'exp', 'abs'}
+        
+        if self.op in unary_ops:
+            inner_unit = self.left.get_unit() if self.left else UnitVector()
+            if self.op in {'sin', 'cos', 'log', 'exp'}:
+                return UnitVector()
+            return inner_unit
+        
+        left_unit = self.left.get_unit() if self.left else UnitVector()
+        right_unit = self.right.get_unit() if self.right else UnitVector()
+        
+        if self.op in {'+', '-'}:
+            return left_unit
+        if self.op == '*':
+            return left_unit + right_unit
+        if self.op == '/':
+            return left_unit - right_unit
+        if self.op == '**':
+            return left_unit * 2
+        
+        return UnitVector()
 
 
 @dataclass
@@ -427,7 +533,7 @@ class EvoMath:
     - MEMORY: Learned patterns
     """
     
-    def __init__(self, population_size: int = 600):
+    def __init__(self, population_size: int = 600, leaky_generations: int = 10):
         self.population_size = population_size
         self.population: List[Antibody] = []
         self.memory: Dict[str, Node] = {}
@@ -438,10 +544,12 @@ class EvoMath:
         self.antibiotic = Antibiotic()
         self.knowledge = KnowledgeBase()
         
+        self.leaky_generations = leaky_generations
+        
         self.binary_ops = ['+', '-', '*', '/', '**', '%', '^', '&', '|', '<<', '>>']
         self.unary_ops = ['sin', 'cos', 'log', 'sqrt', 'exp', 'abs']
         
-        print(f"Initialized V5 with {len(self.knowledge.entries)} knowledge entries")
+        print(f"Initialized with {len(self.knowledge.entries)} knowledge entries")
     
     def random_node(self, max_depth: int = 4, allowed_vars: list = None, num_vars: int = 1) -> Node:
         if max_depth <= 0:
@@ -559,6 +667,8 @@ class EvoMath:
         var_coverage = len(used_vars & required_vars) / len(required_vars) if required_vars else 1.0
         var_penalty = 1.0 - (0.5 * (1 - var_coverage)) if required_vars else 1.0
         
+        mhc_penalty = 1.0
+        
         if avg_error < 1e-6 and hit_rate == 1.0:
             base_fitness = 10000 / (complexity ** 0.7)
         else:
@@ -566,8 +676,28 @@ class EvoMath:
         
         error_penalty = avg_error / (1 + avg_error)
         
-        elegance = node.elegance_score()
-        elegance_bonus = 1.0 + elegance * 0.5 if hit_rate >= 0.5 else 1.0
+        # Inline elegance calculation to avoid method call issues
+        clean, bitwise = 0, 0
+        stack = [node]
+        while stack:
+            n = stack.pop()
+            if n.op in {'+', '-', '*', '/', '**'}:
+                clean += 1
+            elif n.op in {'^', '&', '|', '<<', '>>'}:
+                bitwise += 1
+            if n.left:
+                stack.append(n.left)
+            if n.right:
+                stack.append(n.right)
+        total = clean + bitwise
+        elegance = clean / total if total > 0 else 1.0
+        
+        if self.generation < self.leaky_generations:
+            progress = self.generation / self.leaky_generations
+            logistic = 1 / (1 + math.exp(-10 * (progress - 0.5)))
+            elegance_bonus = 1.0 + elegance * 0.5 * logistic
+        else:
+            elegance_bonus = 1.0 + elegance * 0.5 if hit_rate >= 0.5 else 1.0
         
         antibiotic_boost = self.antibiotic.apply(antibody, antigen)
         
@@ -576,10 +706,12 @@ class EvoMath:
         
         hit_bonus = hit_rate * 500
         
-        if hit_rate == 1.0:
-            return (base_fitness * elegance_bonus * affinity_bonus * class_bonus * antibiotic_boost * var_penalty + hit_bonus)
+        fitness = base_fitness * elegance_bonus * affinity_bonus * class_bonus * antibiotic_boost * var_penalty * mhc_penalty
         
-        return (base_fitness * (1 - error_penalty) * affinity_bonus * class_bonus * antibiotic_boost * var_penalty + hit_bonus * 0.1)
+        if hit_rate == 1.0:
+            return fitness + hit_bonus
+        
+        return fitness * (1 - error_penalty) + hit_bonus * 0.1
     
     def complement_system_check(self, antibody: Antibody, antigen: Antigen) -> bool:
         """Complement system verification"""
