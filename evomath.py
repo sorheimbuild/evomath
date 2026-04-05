@@ -451,25 +451,25 @@ class EvoMath:
             var = random.choice(allowed_vars) if allowed_vars else random.choice(['x', 'y', 'z', 'n'])
             return Node(op="VAR", value=var)
         
-        if random.random() < 0.2:
+        if random.random() < 0.25:
             if random.random() < 0.5:
                 val = random.choice([0, 1, 2, 3, 0.5, 1.0, 2.0, math.pi, math.e, 1.414])
                 return Node(op="CONST", value=val)
             var = random.choice(allowed_vars) if allowed_vars else random.choice(['x', 'y', 'z', 'n'])
             return Node(op="VAR", value=var)
         
-        if random.random() < 0.15:
+        if random.random() < 0.2:
             kb_entry = self.knowledge.get_random_entry()
             return self._knowledge_to_node(kb_entry)
         
         if random.random() < 0.25:
             op = random.choice(self.unary_ops)
-            return Node(op=op, left=self.random_node(max_depth - 1))
+            return Node(op=op, left=self.random_node(max_depth - 1, allowed_vars, num_vars))
         
         op = random.choice(self.binary_ops)
         return Node(op=op, 
-                   left=self.random_node(max_depth - 1),
-                   right=self.random_node(max_depth - 1))
+                   left=self.random_node(max_depth - 1, allowed_vars, num_vars),
+                   right=self.random_node(max_depth - 1, allowed_vars, num_vars))
     
     def _knowledge_to_node(self, entry: KnowledgeEntry) -> Node:
         """Convert knowledge entry expression string to node tree"""
@@ -550,6 +550,8 @@ class EvoMath:
         else:
             base_fitness = (1.0 / (avg_error + 1e-15)) * (math.log(complexity + 1) ** 0.3)
         
+        error_penalty = avg_error / (1 + avg_error)
+        
         elegance = node.elegance_score()
         elegance_bonus = 1.0 + elegance * 0.5 if hit_rate >= 0.5 else 1.0
         
@@ -563,7 +565,7 @@ class EvoMath:
         if hit_rate == 1.0:
             return (base_fitness * elegance_bonus * affinity_bonus * class_bonus * antibiotic_boost + hit_bonus)
         
-        return (base_fitness * affinity_bonus * class_bonus * antibiotic_boost + hit_bonus * 0.1)
+        return (base_fitness * (1 - error_penalty) * affinity_bonus * class_bonus * antibiotic_boost + hit_bonus * 0.1)
     
     def complement_system_check(self, antibody: Antibody, antigen: Antigen) -> bool:
         """Complement system verification"""
