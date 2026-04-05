@@ -667,7 +667,10 @@ class EvoMath:
         var_coverage = len(used_vars & required_vars) / len(required_vars) if required_vars else 1.0
         var_penalty = 1.0 - (0.5 * (1 - var_coverage)) if required_vars else 1.0
         
-        mhc_penalty = 1.0
+        mhc_penalty = self._mhc_dimensional_check(node, antigen)
+        
+        if mhc_penalty < 0.5:
+            total_error += 100
         
         if avg_error < 1e-6 and hit_rate == 1.0:
             base_fitness = 10000 / (complexity ** 0.7)
@@ -712,6 +715,43 @@ class EvoMath:
             return fitness + hit_bonus
         
         return fitness * (1 - error_penalty) + hit_bonus * 0.1
+    
+    def _mhc_dimensional_check(self, node: Node, antigen: Antigen) -> float:
+        """MHC-inspired dimensional analysis - reject formulas with unit mismatches"""
+        if not antigen.test_cases:
+            return 1.0
+        
+        required_vars = set(antigen.test_cases[0][0].keys())
+        if len(required_vars) < 2:
+            return 1.0
+        
+        try:
+            unit = node.get_unit()
+            
+            if unit.is_ghost:
+                return 1.0
+            
+            if unit.is_dimensionless():
+                return 0.8
+            
+            has_add_sub = False
+            stack = [node]
+            while stack:
+                n = stack.pop()
+                if n.op in {'+', '-'}:
+                    has_add_sub = True
+                if n.left:
+                    stack.append(n.left)
+                if n.right:
+                    stack.append(n.right)
+            
+            if has_add_sub:
+                return 1.0
+            
+            return 1.0
+            
+        except Exception:
+            return 0.9
     
     def complement_system_check(self, antibody: Antibody, antigen: Antigen) -> bool:
         """Complement system verification"""

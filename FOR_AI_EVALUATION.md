@@ -10,7 +10,7 @@
 
 **Core Use Case:** Given input/output pairs, discover the underlying formula.
 
-**Current State:** v0.9.1-beta
+**Current State:** v0.9.2-beta
 
 ---
 
