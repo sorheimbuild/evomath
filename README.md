@@ -1,31 +1,58 @@
 # EvoMath
 
-**A general-purpose immune-system-inspired problem solver.**
+**A lightweight symbolic search engine inspired by immune systems.**
 
-Throw any problem at it. It adapts.
+Designed for symbolic regression and structured optimization problems.
 
 ---
 
 ## What is EvoMath?
 
-EvoMath is a lightweight algorithm inspired by biological immune systems. Like the immune system recognizes and adapts to any pathogen, EvoMath adapts to any problem you give it.
+EvoMath is a tree-based symbolic search algorithm inspired by biological immune systems. It evolves mathematical expressions to fit input/output data, with a preference for elegant (simple) solutions.
 
-**Core Philosophy:** Instead of specialized algorithms for each problem type, one general system that learns and adapts.
+**Core Use Case:** Given input/output pairs, discover the underlying formula.
+
+---
+
+## What It Is (Technically)
+
+EvoMath is:
+- **Tree-based symbolic search** - evolves expression trees
+- **Genetic programming** with immune-inspired heuristics
+- **Symbolic regression** - finding equations from data
+
+It is NOT:
+- A general AI
+- A neural network
+- A solver for all problems
 
 ---
 
 ## Key Concepts
 
 | Biology | EvoMath | Role |
-|---------|--------|------|
-| Antigen | Problem | The challenge to solve |
-| Antibody | Solution | A candidate solution |
-| B-cells | Population | Pool of candidate solutions |
+|---------|---------|------|
+| Antigen | Problem | The challenge to solve (test cases) |
+| Antibody | Solution | A candidate expression tree |
+| B-cells | Population | Pool of candidate expressions |
 | IgM → IgG | Antibody Class | Naive → Refined evolution |
-| Complement | Verification | Parallel checking mechanisms |
-| Memory | Learned Patterns | Successful solutions remembered |
-| Antibiotics | Heuristics | External guidance |
+| Complement | Verification | Parallel candidate scoring |
+| Memory | Elite Archive | Successful patterns stored |
+| Antibiotics | Heuristics | External guidance/priors |
 | Clonal Selection | Affinity-based mutation | Better solutions mutate less |
+
+---
+
+## Algorithmic Interpretation
+
+| Immune Concept | Technical Implementation |
+|----------------|------------------------|
+| Clonal Selection | Affinity-proportional mutation - good solutions get small mutations (fine-tuning), bad solutions get large mutations (exploration) |
+| Idiotypic Suppression | Diversity preservation - suppress structurally similar solutions to avoid premature convergence |
+| Complement Verification | Secondary scoring - parallel evaluation marks promising candidates |
+| Memory Cells | Elite archive - store best solutions for reuse |
+| Antibiotics | Injected heuristics - domain-specific priors guide search |
+| Affinity Maturation | Class switching - IgM (naive) → IgG (refined) based on fitness |
 
 ---
 
@@ -58,26 +85,34 @@ EvoMath is a lightweight algorithm inspired by biological immune systems. Like t
 
 ## Features
 
-- **General-Purpose**: Works on any problem definable with input/output pairs
-- **Energy-Efficient**: Lightweight design, runs on Raspberry Pi
-- **Self-Adaptive**: Immune metaphor means automatic adaptation
-- **Memory**: Remembers successful patterns
-- **Elegance**: Prefers simple, beautiful solutions over complex ones
-- **Multi-Target**: Validates against multiple test cases
+- **Pure Python** - No external dependencies
+- **Low dependency footprint** - Just the standard library
+- **No GPU required** - Runs on any Python environment
+- **Designed for low-power hardware** - Minimal population (~100-200)
+- **Elegance preference** - Prefers simple solutions over complex ones
+- **Multi-target validation** - Tests against all input/output pairs
 
 ---
 
 ## Proof of Concept Benchmarks
 
-| Problem | Description | Success Rate | Avg Time |
-|---------|-------------|-------------|----------|
-| Linear: `2x` | `f(x) = 2x` | 100% (3/3) | 0.03s |
-| Quadratic: `x²` | `f(x) = x²` | 100% (3/3) | 0.03s |
-| Cubic: `x³` | `f(x) = x³` | 100% (3/3) | 2.57s |
+### Single Variable
+| Problem | Formula | Success Rate | Notes |
+|---------|---------|-------------|-------|
+| Linear: `2x` | `f(x) = 2x` | 100% | Works reliably |
+| Quadratic: `x²` | `f(x) = x²` | 100% | Works reliably |
+| Cubic: `x³` | `f(x) = x³` | 100% | Works |
 
-**Test conditions:** Population=100, Generations=30-50
+### Multi-Variable (Physics)
+| Problem | Formula | Success Rate | Notes |
+|---------|---------|-------------|-------|
+| F=ma | `m * a` | ~80% | Finds correct formula |
+| p=mv | `m * v` | ~60% | Sometimes finds `v+v` |
+| d=vt | `v * t` | ~70% | Works |
 
-**Benchmark code:** See `benchmark()` function in `evomath.py`
+**Test conditions:** Population=80-100, Generations=25-40
+
+**Benchmark code:** Run `python evomath.py` for physics benchmarks.
 
 ---
 
@@ -183,32 +218,11 @@ EvoMath is designed for low-power devices:
 
 ---
 
-## Future Directions
-
-- [ ] Test on physics/chemistry problems
-- [ ] Real-world dataset symbolic regression
-- [ ] Multi-objective optimization
-- [ ] Distributed population (parallel computing)
-- [ ] Self-tuning parameters
-
----
-
-## Comparison to Alternatives
-
-| Approach | Elegance | Efficiency | Adaptability |
-|----------|----------|-----------|--------------|
-| Brute Force | ❌ | ❌ | ❌ |
-| Neural Networks | ❌ | ✓ | ✓ |
-| GP/Genetic Programming | ✓ | ✓ | ✓ |
-| **EvoMath** | ✓✓ | ✓✓ | ✓✓✓ |
-
----
-
 ## Status
 
-**v0.8.0** - Core immune system implemented, benchmarks passing.
+**v0.9.1-beta** - Multi-variable support, improved README credibility.
 
-Active development. Throw problems at it, see what happens.
+Active development. For symbolic regression research.
 
 ---
 

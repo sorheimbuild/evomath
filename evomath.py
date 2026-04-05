@@ -545,6 +545,20 @@ class EvoMath:
         hit_rate = hits / len(antigen.test_cases)
         complexity = node.complexity()
         
+        used_vars = set()
+        def get_vars(n):
+            if n.op == "VAR":
+                used_vars.add(n.value)
+            if n.left:
+                get_vars(n.left)
+            if n.right:
+                get_vars(n.right)
+        get_vars(node)
+        
+        required_vars = set(antigen.test_cases[0][0].keys()) if antigen.test_cases else set()
+        var_coverage = len(used_vars & required_vars) / len(required_vars) if required_vars else 1.0
+        var_penalty = 1.0 - (0.5 * (1 - var_coverage)) if required_vars else 1.0
+        
         if avg_error < 1e-6 and hit_rate == 1.0:
             base_fitness = 10000 / (complexity ** 0.7)
         else:
@@ -563,9 +577,9 @@ class EvoMath:
         hit_bonus = hit_rate * 500
         
         if hit_rate == 1.0:
-            return (base_fitness * elegance_bonus * affinity_bonus * class_bonus * antibiotic_boost + hit_bonus)
+            return (base_fitness * elegance_bonus * affinity_bonus * class_bonus * antibiotic_boost * var_penalty + hit_bonus)
         
-        return (base_fitness * (1 - error_penalty) * affinity_bonus * class_bonus * antibiotic_boost + hit_bonus * 0.1)
+        return (base_fitness * (1 - error_penalty) * affinity_bonus * class_bonus * antibiotic_boost * var_penalty + hit_bonus * 0.1)
     
     def complement_system_check(self, antibody: Antibody, antigen: Antigen) -> bool:
         """Complement system verification"""
@@ -645,10 +659,12 @@ class EvoMath:
         new_pop = list(elites)
         
         while len(new_pop) < self.population_size:
+            allowed_vars = list(antigen.test_cases[0][0].keys()) if antigen.test_cases else ['x']
+            
             if len(elites) >= 2 and random.random() < 0.5:
                 p1, p2 = random.sample(elites, 2)
                 child_node = self._crossover(p1.node.clone(), p2.node.clone())
-                child_node = self._mutate(child_node, p1.affinity)
+                child_node = self._mutate(child_node, p1.affinity, allowed_vars)
                 new_pop.append(Antibody(
                     node=child_node,
                     antibody_class=AntibodyClass.IGG if p1.fitness > 100 else p1.antibody_class,
@@ -656,14 +672,13 @@ class EvoMath:
                 ))
             elif elites and random.random() < 0.6:
                 parent = random.choice(elites)
-                child_node = self._mutate(parent.node.clone(), parent.affinity)
+                child_node = self._mutate(parent.node.clone(), parent.affinity, allowed_vars)
                 new_pop.append(Antibody(
                     node=child_node,
                     antibody_class=parent.antibody_class,
                     affinity=max(0.1, parent.affinity * 1.1)
                 ))
             else:
-                allowed_vars = list(antigen.test_cases[0][0].keys()) if antigen.test_cases else ['x']
                 num_vars = len(allowed_vars)
                 depth = random.randint(3, 6) if num_vars > 1 else random.randint(2, 4)
                 new_pop.append(Antibody(
@@ -674,25 +689,26 @@ class EvoMath:
         self.population = new_pop[:self.population_size]
         self.generation += 1
     
-    def _mutate(self, node: Node, affinity: float = 0.5) -> Node:
+    def _mutate(self, node: Node, affinity: float = 0.5, allowed_vars: list = None) -> Node:
         if random.random() < 0.15:
             if random.random() < 0.3:
-                return self.random_node(max_depth=3)
+                default_vars = ['x', 'y', 'z', 'n']
+                return self.random_node(max_depth=3, allowed_vars=allowed_vars or default_vars)
             if node.op == "CONST":
                 noise_scale = 0.5 / (affinity + 0.1)
                 return Node(op="CONST", value=node.value + random.gauss(0, noise_scale))
             if node.op == "VAR":
-                return Node(op="VAR", value=random.choice(['x', 'y', 'z', 'n']))
+                return Node(op="VAR", value=random.choice(allowed_vars or ['x', 'y', 'z', 'n']))
             
             if node.left and node.right:
                 if random.random() < 0.5:
-                    return Node(op=node.op, left=self._mutate(node.left, affinity), right=node.right)
+                    return Node(op=node.op, left=self._mutate(node.left, affinity, allowed_vars), right=node.right)
                 else:
-                    return Node(op=node.op, left=node.left, right=self._mutate(node.right, affinity))
+                    return Node(op=node.op, left=node.left, right=self._mutate(node.right, affinity, allowed_vars))
             elif node.left:
-                return Node(op=node.op, left=self._mutate(node.left, affinity))
+                return Node(op=node.op, left=self._mutate(node.left, affinity, allowed_vars))
             elif node.right:
-                return Node(op=node.op, left=self._mutate(node.right, affinity))
+                return Node(op=node.op, left=self._mutate(node.right, affinity, allowed_vars))
         return node
     
     def _crossover(self, node1: Node, node2: Node) -> Node:
