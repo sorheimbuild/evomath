@@ -540,7 +540,8 @@ class EvoMath:
     - MEMORY: Learned patterns
     """
     
-    def __init__(self, population_size: int = 600, leaky_generations: int = 10, operator_mode: str = "math"):
+    def __init__(self, population_size: int = 600, leaky_generations: int = 10, operator_mode: str = "math",
+                 use_memory: bool = True, use_diversity: bool = True, use_complement: bool = True):
         self.population_size = population_size
         self.population: List[Antibody] = []
         self.memory: Dict[str, Node] = {}
@@ -553,6 +554,11 @@ class EvoMath:
         
         self.leaky_generations = leaky_generations
         self.operator_mode = operator_mode
+        
+        # Ablation controls
+        self.use_memory = use_memory
+        self.use_diversity = use_diversity
+        self.use_complement = use_complement
         
         # Set operators based on mode for energy efficiency
         if operator_mode == "math":
@@ -635,13 +641,15 @@ class EvoMath:
                 antibody_class=AntibodyClass.IGM
             ))
         
-        for _ in range(self.population_size // 4):
-            if self.memory:
-                key = random.choice(list(self.memory.keys()))
-                self.population.append(Antibody(
-                    node=self.memory[key].clone(),
-                    antibody_class=AntibodyClass.MEMORY
-                ))
+        # Memory injection (if enabled)
+        if self.use_memory:
+            for _ in range(self.population_size // 4):
+                if self.memory:
+                    key = random.choice(list(self.memory.keys()))
+                    self.population.append(Antibody(
+                        node=self.memory[key].clone(),
+                        antibody_class=AntibodyClass.MEMORY
+                    ))
     
     def fitness(self, antibody: Antibody, antigen: Antigen) -> float:
         node = antibody.node
@@ -825,16 +833,17 @@ class EvoMath:
             antibody.fitness = self.fitness(antibody, antigen)
             antibody.age += 1
             
-            if self.complement_system_check(antibody, antigen):
+            if self.use_complement and self.complement_system_check(antibody, antigen):
                 antibody.complement_activated = True
         
-        self._idiotypic_network_suppression()
+        if self.use_diversity:
+            self._idiotypic_network_suppression()
         
         def selection_key(a: Antibody) -> float:
             base = a.fitness
-            if a.complement_activated:
+            if self.use_complement and a.complement_activated:
                 base *= 1.5
-            if a.node.hashable() in self.complement.opsonized:
+            if self.use_complement and a.node.hashable() in self.complement.opsonized:
                 base *= 1.2
             return base
         
