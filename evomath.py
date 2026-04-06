@@ -541,7 +541,8 @@ class EvoMath:
     """
     
     def __init__(self, population_size: int = 600, leaky_generations: int = 10, operator_mode: str = "math",
-                 use_memory: bool = True, use_diversity: bool = True, use_complement: bool = True):
+                 use_memory: bool = True, use_diversity: bool = True, use_complement: bool = True,
+                 use_mhc: bool = False):
         self.population_size = population_size
         self.population: List[Antibody] = []
         self.memory: Dict[str, Node] = {}
@@ -559,6 +560,7 @@ class EvoMath:
         self.use_memory = use_memory
         self.use_diversity = use_diversity
         self.use_complement = use_complement
+        self.use_mhc = use_mhc
         
         # Set operators based on mode for energy efficiency
         if operator_mode == "math":
@@ -698,10 +700,13 @@ class EvoMath:
         else:
             var_penalty = 1.0
         
-        mhc_penalty = self._mhc_dimensional_check(node, antigen)
-        
-        if mhc_penalty < 0.5:
-            total_error += 100
+        # MHC dimensional check (only if enabled)
+        if self.use_mhc:
+            mhc_penalty = self._mhc_dimensional_check(node, antigen)
+            if mhc_penalty < 0.5:
+                total_error += 100
+        else:
+            mhc_penalty = 1.0
         
         if avg_error < 1e-6 and hit_rate == 1.0:
             base_fitness = 10000 / (complexity ** 0.7)
