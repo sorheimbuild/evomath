@@ -682,9 +682,11 @@ class EvoMath:
         required_vars = set(antigen.test_cases[0][0].keys()) if antigen.test_cases else set()
         var_coverage = len(used_vars & required_vars) / len(required_vars) if required_vars else 1.0
         
-        # Stronger penalty for missing variables - prevents garbled programs
+        # Stronger penalty for missing variables (multi-variable problems)
+        # Use 0.1 for multi-var (90% penalty), 0.5 for single-var
+        is_multivar = len(required_vars) > 1
         if var_coverage < 1.0 and required_vars:
-            var_penalty = 0.3  # Strong but not fatal
+            var_penalty = 0.1 if is_multivar else 0.5
         else:
             var_penalty = 1.0
         
