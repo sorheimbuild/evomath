@@ -134,17 +134,19 @@ class Node:
                     left=self.left.clone() if self.left else None,
                     right=self.right.clone() if self.right else None)
     
-    def evaluate(self, variables: Dict[str, float]) -> float:
+    def evaluate(self, variables: Dict[str, float], strict: bool = False) -> float:
         if self.op == "CONST":
             return self.value
         if self.op == "VAR":
             val = variables.get(self.value, None)
             if val is None:
-                return 0  # Undefined - but will be penalized by var_coverage
+                if strict:
+                    return float('nan')  # Signal invalid
+                return 0  # Backwards compatible
             return val
         
-        l = self.left.evaluate(variables) if self.left else 0
-        r = self.right.evaluate(variables) if self.right else 0
+        l = self.left.evaluate(variables, strict) if self.left else 0
+        r = self.right.evaluate(variables, strict) if self.right else 0
         
         ops = {
             Operator.ADD.value: lambda a, b: a + b,
@@ -649,7 +651,7 @@ class EvoMath:
         
         for inputs, target in antigen.test_cases:
             try:
-                result = node.evaluate(inputs)
+                result = node.evaluate(inputs, strict=True)  # Use strict to catch undefined vars
                 if math.isnan(result) or math.isinf(result):
                     total_error += 1e10
                     continue
