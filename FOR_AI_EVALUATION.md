@@ -10,7 +10,7 @@
 
 **Core Use Case:** Given input/output pairs, discover the underlying formula.
 
-**Current State:** v0.9.2-beta
+**Current State:** v0.9.3-beta
 
 ---
 
@@ -112,9 +112,26 @@ Where:
 
 ## Files
 
-- `evomath.py` - Main implementation (~840 lines)
+- `evomath.py` - Main implementation (~970 lines)
 - `README.md` - Documentation
 - `archive/` - Old versions
+
+---
+
+## Prior Art - Immune System Approaches to Symbolic Regression
+
+This validates that EvoMath is building on legitimate research (20+ years):
+
+| Paper | Year | Key Contribution |
+|-------|------|------------------|
+| Johnson - "Artificial Immune System Programming for Symbolic Regression" | 2003 | First AIS for symbolic regression using clonal selection |
+| Gan & Chow - "Clone Selection Programming and Application to Symbolic Regression" | 2008 | CSP combines GEP encoding with immune selection |
+| Bernardino & Barbosa - "Grammar-Based Immune Programming for Symbolic Regression" | 2009 | Adds grammar constraints for syntax validity |
+
+**Links:**
+- https://link.springer.com/chapter/10.1007/3-540-36599-0_32 (Johnson 2003)
+- https://www.sciencedirect.com/science/article/abs/pii/S0957417408001607 (Gan & Chow 2008)
+- https://link.springer.com/chapter/10.1007/978-3-642-03246-2_26 (Bernardino 2009)
 
 ---
 
