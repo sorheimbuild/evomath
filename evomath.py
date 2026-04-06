@@ -285,11 +285,11 @@ class Antibody:
 @dataclass 
 class Antigen:
     """Problem as antigen - the target to solve"""
-    target: Any
+    target: Any = ""
+    test_cases: List[Tuple[Dict[str, float], float]] = field(default_factory=list)
     constraints: List[Callable] = field(default_factory=list)
     description: str = ""
     difficulty: int = 1
-    test_cases: List[Tuple[Dict[str, float], float]] = field(default_factory=list)
 
 
 @dataclass
@@ -929,6 +929,9 @@ class EvoMath:
             best = self.population[0]
             
             if verbose and (i % 20 == 0 or i < 5):
+                if not antigen.test_cases:
+                    print(f"Gen {i:3d}: WARNING - no test_cases!")
+                    continue
                 hits = sum(1 for inp, t in antigen.test_cases 
                           if abs(best.node.evaluate(inp) - t) < 1e-6)
                 complement_count = sum(1 for a in self.population if a.complement_activated)
