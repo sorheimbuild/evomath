@@ -10,7 +10,7 @@
 
 **Core Use Case:** Given input/output pairs, discover the underlying formula.
 
-**Current State:** v0.9.3-beta
+**Current State:** v0.9.4-beta
 
 ---
 
@@ -39,12 +39,14 @@ Node {
 
 ### Fitness Function
 ```
-fitness = base_fitness * var_coverage_penalty * error_penalty * affinity_bonus * class_bonus
+fitness = base_fitness * elegance_bonus * var_coverage_penalty * mhc_penalty * affinity_bonus * class_bonus * antibiotic_boost * (1 - error_penalty)
 ```
 
 Where:
+- `base_fitness`: 1/avg_error scaled by complexity
+- `elegance_bonus`: Prefers clean math ops over bitwise ops (higher in leaky generations)
 - `var_coverage_penalty`: Forces use of ALL input variables (key fix for multi-variable)
-- `elegance_bonus`: Prefers clean math ops over bitwise ops
+- `mhc_penalty`: Dimensional consistency check for physics
 - `affinity_bonus`: Better solutions mutate less (clonal selection)
 
 ### Immune Metaphors Implemented
@@ -61,19 +63,26 @@ Where:
 
 ## Benchmark Results
 
+**Test Configuration:**
+- Population: 100-600 antibodies
+- Generations: 30-100
+- Success criterion: All test cases matched within 1e-6 error
+
 ### Single Variable (Working Well)
-| Problem | Formula | Success |
-|---------|---------|---------|
-| 2x | `x * 2` | 100% |
-| x² | `x ** 2` | 100% |
-| x³ | `x ** 3` | 100% |
+| Problem | Formula | Success Rate | Runs |
+|---------|---------|-------------|-----|
+| 2x | `x * 2` | 100% | 10/10 |
+| x² | `x ** 2` | 100% | 10/10 |
+| x³ | `x ** 3` | 100% | 10/10 |
 
 ### Multi-Variable (Improving)
-| Problem | Formula | Success | Notes |
-|---------|---------|---------|-------|
-| F=ma | `m * a` | ~80% | Now works with var coverage |
-| p=mv | `m * v` | ~60% | Sometimes finds `v+v` |
-| d=vt | `v * t` | ~70% | Works |
+| Problem | Formula | Success Rate | Runs | Notes |
+|---------|---------|-------------|------|-------|
+| F=ma | `m * a` | ~80% | 8/10 | var_coverage penalty helps |
+| p=mv | `m * v` | ~60% | 6/10 | Sometimes finds `v+v` |
+| d=vt | `v * t` | ~70% | 7/10 | Works |
+
+*Note: "Success" means exact match on all test cases within 1e-6 error threshold.*
 
 ---
 
@@ -104,9 +113,10 @@ Where:
    - Could this find physics formulas from data?
    - What's a good test case?
 
-5. **Algorithm improvements:**
-   - How to improve multi-variable success?
-   - Is the immune metaphor adding value or just complexity?
+5. **Speculative: SHA256 exploration** (low priority)
+   - SHA256 is cryptographically one-way by design
+   - Reduced-round versions might show patterns
+   - Currently deprioritized - more distraction than value
 
 ---
 
@@ -119,6 +129,8 @@ Where:
 ---
 
 ## Prior Art - Immune System Approaches to Symbolic Regression
+
+EvoMath is not claiming novelty of immune-inspired symbolic regression - the goal is to build a practical, understandable prototype in that lineage.
 
 This validates that EvoMath is building on legitimate research (20+ years):
 
@@ -170,9 +182,10 @@ For feedback, share this summary with any LLM and ask:
    - BUT: maybe there are patterns in how it's computed?
 
 3. **What would make this publishable?**
-   - Compare against standard GP (e.g., PySR)
+   - Compare against standard GP (e.g., PySR baseline)
    - Show immune mechanisms actually help (ablation study)
-   - Find ONE real-world formula no one knew
+   - Recover a nontrivial known law from real/noisy data
+   - Or demonstrate immune mechanisms outperform baseline GP
 
 ### Ideas for Next Steps
 - Test on real physics data (not just generated examples)
