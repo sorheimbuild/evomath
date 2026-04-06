@@ -74,23 +74,29 @@ class UnitVector:
 
 
 # Predefined unit vectors for common variables
+# SI units: [L, M, T, I, Θ, N, J] = [Length, Mass, Time, Current, Temp, Amount, Intensity]
 UNIT_REGISTRY: Dict[str, UnitVector] = {
-    'm': UnitVector((1, 0, 0, 0, 0, 0, 0)),      # Length
-    'M': UnitVector((1, 0, 0, 0, 0, 0, 0)),      # Length
-    'x': UnitVector((1, 0, 0, 0, 0, 0, 0)),      # Length (generic)
-    'y': UnitVector((1, 0, 0, 0, 0, 0, 0)),      # Length (generic)
-    'z': UnitVector((1, 0, 0, 0, 0, 0, 0)),      # Length (generic)
-    't': UnitVector((0, 0, 1, 0, 0, 0, 0)),      # Time
+    'm': UnitVector((0, 1, 0, 0, 0, 0, 0)),      # Mass [M]
+    'M': UnitVector((0, 1, 0, 0, 0, 0, 0)),      # Mass [M]
+    'mass': UnitVector((0, 1, 0, 0, 0, 0, 0)),    # Mass [M]
+    'x': UnitVector((1, 0, 0, 0, 0, 0, 0)),      # Position [L]
+    'y': UnitVector((1, 0, 0, 0, 0, 0, 0)),      # Position [L]
+    'z': UnitVector((1, 0, 0, 0, 0, 0, 0)),      # Position [L]
+    'd': UnitVector((1, 0, 0, 0, 0, 0, 0)),      # Distance [L]
+    'r': UnitVector((1, 0, 0, 0, 0, 0, 0)),      # Radius [L]
+    't': UnitVector((0, 0, 1, 0, 0, 0, 0)),      # Time [T]
     'v': UnitVector((1, 0, -1, 0, 0, 0, 0)),     # Velocity [L/T]
     'a': UnitVector((1, 0, -2, 0, 0, 0, 0)),     # Acceleration [L/T²]
-    'F': UnitVector((1, 1, -2, 0, 0, 0, 0)),     # Force [ML/T²]
-    'p': UnitVector((1, 1, -1, 0, 0, 0, 0)),     # Momentum [ML/T]
+    'F': UnitVector((1, 1, -2, 0, 0, 0, 0)),    # Force [ML/T²]
+    'p': UnitVector((1, 1, -1, 0, 0, 0, 0)),    # Momentum [ML/T]
     'E': UnitVector((2, 1, -2, 0, 0, 0, 0)),     # Energy [ML²/T²]
-    'KE': UnitVector((2, 1, -2, 0, 0, 0, 0)),     # Kinetic Energy
-    'mass': UnitVector((0, 1, 0, 0, 0, 0, 0)),    # Mass
-    'n': UnitVector((0, 0, 0, 0, 0, 1, 0)),     # Amount
-    'T': UnitVector((0, 0, 0, 0, 1, 0, 0)),      # Temperature
-    'I': UnitVector((0, 0, 0, 1, 0, 0, 0)),      # Current
+    'KE': UnitVector((2, 1, -2, 0, 0, 0, 0)),    # Kinetic Energy [ML²/T²]
+    'PE': UnitVector((2, 1, -2, 0, 0, 0, 0)),    # Potential Energy [ML²/T²]
+    'T': UnitVector((0, 0, 0, 0, 1, 0, 0)),      # Temperature [Θ]
+    'P': UnitVector((-1, 1, -3, 0, 0, 0, 0)),    # Power [ML²/T³]
+    'I': UnitVector((0, 0, 0, 1, 0, 0, 0)),      # Current [I]
+    'Q': UnitVector((0, 0, 1, 1, 0, 0, 0)),      # Charge [IT]
+    'n': UnitVector((0, 0, 0, 0, 0, 1, 0)),      # Amount [N]
 }
 
 
