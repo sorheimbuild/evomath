@@ -657,7 +657,7 @@ class EvoMath:
             except:
                 total_error += 1e10
         
-        if total_error > 1e9:
+        if total_error > 1e9 or not antigen.test_cases:
             return 0.0
         
         avg_error = total_error / len(antigen.test_cases)
