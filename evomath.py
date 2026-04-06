@@ -20,6 +20,8 @@ from typing import List, Dict, Any, Tuple, Optional, Callable, Set
 from enum import Enum
 from collections import defaultdict
 
+import config
+
 
 class UnitVector:
     """MHC-inspired dimensional analysis.
@@ -533,7 +535,7 @@ class EvoMath:
     - MEMORY: Learned patterns
     """
     
-    def __init__(self, population_size: int = 600, leaky_generations: int = 10):
+    def __init__(self, population_size: int = 600, leaky_generations: int = 10, operator_mode: str = "math"):
         self.population_size = population_size
         self.population: List[Antibody] = []
         self.memory: Dict[str, Node] = {}
@@ -545,11 +547,20 @@ class EvoMath:
         self.knowledge = KnowledgeBase()
         
         self.leaky_generations = leaky_generations
+        self.operator_mode = operator_mode
         
-        self.binary_ops = ['+', '-', '*', '/', '**', '%', '^', '&', '|', '<<', '>>']
-        self.unary_ops = ['sin', 'cos', 'log', 'sqrt', 'exp', 'abs']
+        # Set operators based on mode for energy efficiency
+        if operator_mode == "math":
+            self.binary_ops = ['+', '-', '*', '/', '**']
+            self.unary_ops = ['sin', 'cos', 'log', 'sqrt', 'exp', 'abs']
+        elif operator_mode == "bitwise":
+            self.binary_ops = ['^', '&', '|', '<<', '>>']
+            self.unary_ops = []
+        else:  # mixed
+            self.binary_ops = ['+', '-', '*', '/', '**', '%', '^', '&', '|', '<<', '>>']
+            self.unary_ops = ['sin', 'cos', 'log', 'sqrt', 'exp', 'abs']
         
-        print(f"Initialized with {len(self.knowledge.entries)} knowledge entries")
+        print(f"Initialized (mode={operator_mode}) with {len(self.knowledge.entries)} knowledge entries")
     
     def random_node(self, max_depth: int = 4, allowed_vars: list = None, num_vars: int = 1) -> Node:
         if max_depth <= 0:
