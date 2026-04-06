@@ -138,7 +138,10 @@ class Node:
         if self.op == "CONST":
             return self.value
         if self.op == "VAR":
-            return variables.get(self.value, 0)
+            val = variables.get(self.value, None)
+            if val is None:
+                return 0  # Undefined - but will be penalized by var_coverage
+            return val
         
         l = self.left.evaluate(variables) if self.left else 0
         r = self.right.evaluate(variables) if self.right else 0
@@ -676,7 +679,12 @@ class EvoMath:
         
         required_vars = set(antigen.test_cases[0][0].keys()) if antigen.test_cases else set()
         var_coverage = len(used_vars & required_vars) / len(required_vars) if required_vars else 1.0
-        var_penalty = 1.0 - (0.5 * (1 - var_coverage)) if required_vars else 1.0
+        
+        # Stronger penalty for missing variables - prevents garbled programs
+        if var_coverage < 1.0 and required_vars:
+            var_penalty = 0.3  # Strong but not fatal
+        else:
+            var_penalty = 1.0
         
         mhc_penalty = self._mhc_dimensional_check(node, antigen)
         
